@@ -1,0 +1,96 @@
+select p_id,p_name,p_sales,@rownum:=@rownum+1 from products_sales,(select @rownum:=0) as b order by p_sales desc;
+
+select p_id,p_name,p_sales from products_sales group by p_id,p_name order by p_id,p_sales desc;
+
+
+#day5 Add row numbers within the group and select the top n rows
+select * from
+(
+select p_type, p_name, p_view,
+if (@pre =p_type, @rownum:=@rownum+1, @rownum:=1)as c,@pre:=p_type 
+from
+(select p_type,p_name,p_view from products group by p_type,p_name order by p_type, p_view desc) a,
+(select @pre:="",@rownum:=0) b
+)as d
+where d.c<3;
+
+
+#day5 product weight calculation
+select biao1.* , biao2.avg, (sales/avg)as weight from
+(
+select p_type,a.p_name,p_view,ifnull(p_sales,0)as sales from
+products a left join products_sales b on a.p_id=b.p_id
+GROUP BY a.p_type,a.p_name
+order by a.p_type, a.p_view desc
+)biao1,
+
+(
+select p_type, round((sum(sales)/count(*)),0)as avg from
+(select p_type,a.p_name,p_view,ifnull(p_sales,0)as sales from
+products a left join products_sales b on a.p_id=b.p_id
+GROUP BY a.p_type,a.p_name
+order by a.p_type, a.p_view desc) as aa group by p_type
+)biao2
+where biao1.p_type=biao2.p_type;
+
+#day5 Self-join is used to find connections between individuals based on mutual recommendations (who recommended me and whom I recommended)
+select * from
+(select a.u_id, a.u_name as member, b.u_name as refer FROM
+webusers as a left join webusers as b on a.p_id=b.u_id)aa
+left join
+(select c.p_id, GROUP_CONCAT(c.u_name) as refered_by from
+webusers as c GROUP BY c.p_id) bb 
+on aa.u_id =bb.p_id;
+
+
+# day5 Delete duplicate data.
+delete from reviews where r_id in
+(select aaa.r_id from 
+(
+select aa.*, if(@temp=r_content,@rownum:=@rownum+1,@rownum:=1) as c,@temp:=r_content from
+(select a.* from 
+(select r_content, r_userid, count(*) from reviews group by r_userid, r_content having count(*)>1) b
+inner join reviews a on a.r_content=b.r_content and a.r_userid=b.r_userid) aa,
+(select @temp:="",@rownum:=1)bb
+) aaa
+where aaa.c>1);
+
+select * from reviews;
+
+
+#day5 User points are divided into levels.
+select * from user_level
+
+update user_level,
+(select avg(user_total) as avg from user_level) b set user_rank =
+CASE 
+	WHEN user_total > b.avg and user_total < b.avg*2 THEN "Platinum"
+	When user_total> b.avg*2 Then "Gold"
+	ELSE
+		"onlooker"
+END;
+
+
+#day5 pinning
+(select * from user_level where id in (2,4,6) order by user_total desc limit 10)
+UNION
+(select * from user_level order by user_total desc limit 10);
+
+
+#day5 continuous check-in
+select a.*, if(@temp=user_name and DATEDIFF(sign_date,@pre_date)=1,@rownum:=@rownum+1,@rownum:=1),@temp:=user_name,@pre_date:=sign_date from
+(select * from user_sign group by user_name, sign_date order by user_name,sign_date)a,
+(select @temp:="",@rownum:=1,@pre_date='')b;
+
+#day5 get the newest situation
+select bb.* from
+(select prod_class,prod_id,max(sales_date)as sd,sales_num from prod_sales group by prod_class) aa #If there is only "aa," then "prod_class" can only appear once.
+inner join (select * from prod_sales) bb on aa.prod_class=bb.prod_class and aa.sd=bb.sales_date; #After performing another operation, all corresponding "prod_id" in "prod_class" can now have values
+
+#day5 User points rewards
+update users_score a inner join
+(select max(paymoney) as mx, user_name from users_buy group by user_name) b ON
+a.user_name=b.user_name
+set a.user_score:=a.user_score+(b.mx*0.1);
+select* from users_score;
+

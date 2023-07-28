@@ -1,0 +1,111 @@
+#day6 Active users on a specific date.
+select count(*), DATE_FORMAT(logintime,"%Y-%m-%d") from user_login
+where logintime >="2019-04-01" and logintime<"2019-04-02";
+
+#day6 Viewing next-day retention rate.
+select concat(round(bb.num2/aa.num1*100,2),"%") from 
+(select count(*) as num1 from user_info where addtime>="2019-03-05" and addtime<"2019-03-06")aa,
+
+(select count(distinct userid) as num2 from user_login 
+where logintime>="2019-03-06" and logintime<"2019-03-07" and userid in 
+(select userid from user_info where addtime>="2019-03-05" and addtime<"2019-03-06"))bb;
+
+
+#day6 Number of logins within the specified date.
+select count(*)from user_login where logintime>="2019-03-09" and logintime<"2019-03-10";
+select count(*), userid, date_format(logintime,"%y-%m-%d") FROM
+user_login where logintime>="2019-03-05" and logintime<"2019-03-11" and userid="u1001997"
+GROUP BY userid, date_format(logintime,"%y-%m-%d");
+
+#day6 Users who logged in continuously from the 5th to the 10th.
+#userid="00122b4c63b3556fa001e5e10b0c5062"
+select userid,if(@temp=userid, @rownum:=@rownum+1, @rownum:=1) as rowrank,@temp:=userid from
+(select userid, DATE_FORMAT(logintime,"%Y-%m-%d") as ltime from user_login 
+where logintime>="2019-03-05" and logintime<"2019-03-11"
+GROUP BY userid, ltime order by userid)aa,  #This needs an 'ORDER BY' to display user IDs followed by all their corresponding timestamps.
+(select @temp:="",@rownum:=1)bb
+order by rowrank desc ;
+
+SELECT COUNT(*) FROM
+(SELECT userid,IF(@pre = userid,@rownum := @rownum + 1,@rownum := 1) AS rownum,@pre := userid FROM
+(SELECT userid, DATE_FORMAT(logintime,"%Y/%m/%d") FROM user_login
+WHERE logintime >= "2019-03-05" AND logintime < "2019-03-11"
+GROUP BY userid,DATE_FORMAT(logintime,"%Y-%m-%d") order by userid) a,
+(SELECT @pre := "",@rownum := 0) b) c
+WHERE c.rownum = 6;
+
+#day6 7-day daily active users
+select tm,count(tm)as people from
+(
+select userid, DATE_FORMAT(logintime,"%Y-%m-%d")as tm, count(*)as num from user_login
+where logintime >="2019-03-02" and logintime<"2019-03-08"
+group by userid, tm
+) c 
+where c.num>=2
+group by tm;
+
+#day6 Daily active user growth rate
+select tm,people,yesterday,concat(round((people-yesterday)/yesterday*100,2),"%") as changing from
+(
+select tm,people, if(@pre="",0,@pre) as yesterday,@pre:=people,@rownum:=@rownum+1 as rowrank FROM
+(select tm,count(tm)as people from
+(
+select userid, DATE_FORMAT(logintime,"%Y-%m-%d")as tm, count(*)as num from user_login
+where logintime >="2019-03-02" and logintime<"2019-03-09"
+group by userid, tm
+) c 
+where c.num>=2
+group by tm
+) aa,
+(select @pre:="",@rownum:=0)bb
+) aaa
+where rowrank>1;
+
+#day6 Multi-month daily active users
+#Only those who have logged in at least twice a day are counted as daily active users for that day
+replace into aaaaa
+select DATE_FORMAT(aaa.tm,"%Y-%m") as month,sum(people) as dau from
+(
+select tm,people, if(@pre="",0,@pre) as yesterday,@pre:=people,@rownum:=@rownum+1 as rowrank FROM
+(select tm,count(tm)as people from
+(
+select userid, DATE_FORMAT(logintime,"%Y-%m-%d")as tm, count(*)as num from user_login
+where logintime >="2019-03-01" and logintime<"2019-04-02"
+group by userid, tm
+) c 
+where c.num>=2
+group by tm
+) aa,  # 'aa' is used to count how many times the time periods that meet the daily active user criteria appear
+(select @pre:="",@rownum:=0)bb
+) aaa   
+group by DATE_FORMAT(aaa.tm,"%Y-%m");
+
+create table aaaaa
+select DATE_FORMAT(aaa.tm,"%Y-%m") as month,sum(people) as dau from
+(
+select tm,people, if(@pre="",0,@pre) as yesterday,@pre:=people,@rownum:=@rownum+1 as rowrank FROM
+(select tm,count(tm)as people from
+(
+select userid, DATE_FORMAT(logintime,"%Y-%m-%d")as tm, count(*)as num from user_login
+where logintime >="2019-02-01" and logintime<"2019-03-02"
+group by userid, tm
+) c 
+where c.num>=2
+group by tm
+) aa,  #In this case, 'aa' is used to count how many times the time periods that meet the daily active user criteria appear
+(select @pre:="",@rownum:=0)bb
+) aaa   
+group by DATE_FORMAT(aaa.tm,"%Y-%m")
+
+
+#day6 Calculate the N-day retention rate
+select b.ltime, concat(b.num2/a.num1*100,"%")as ratio from 
+(select userid, count(*) as num1 from user_info 
+where addtime>="2019-03-01" and addtime<"2019_03-02" ) a,
+
+(select Distinct userid, DATE_FORMAT(logintime,"%Y-%m-%d")as ltime, count(distinct userid) as num2 from user_login
+where (logintime>="2019-03-02" and logintime<"2019-03-09") and userid IN
+(select userid from user_info 
+where addtime>="2019-03-01" and addtime<"2019_03-02")
+group by ltime) b
+order by b.ltime;

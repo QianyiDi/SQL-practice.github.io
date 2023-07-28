@@ -1,0 +1,100 @@
+select @@GLOBAL.sql_mode;
+set global sql_mode='STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'
+
+#day4 Exercise 1: Finding the Top Ten Users by Sales
+
+
+SELECT
+	sum( OrderAmount ),
+	username,
+	lastlogin_ 
+FROM
+	orderinfo
+	LEFT JOIN userinfo ON orderinfo.UserID = userinfo.userid 
+WHERE
+	username IS NOT NULL 
+GROUP BY
+	orderinfo.UserID 
+ORDER BY
+	sum( Orderamount ) DESC 
+	LIMIT 10;
+	
+#day4 Exercise 1: Find the top ten users based on order quantity		
+SELECT
+	count( OrderID ),
+	username 
+FROM
+	orderinfo
+	LEFT JOIN userinfo ON orderinfo.UserID = userinfo.userid 
+WHERE
+	username IS NOT NULL 
+GROUP BY
+	username 
+ORDER BY
+	count( OrderID ) DESC 
+	LIMIT 10;
+	
+#day4 Exercise 2: Find the top ten users with the highest sales volume and their respective provinces.	
+select username,sum(OrderAmount),regionname FROM
+orderinfo left join userinfo on orderinfo.UserID=userinfo.userid
+left join regioninfo on orderinfo.city=regioninfo.regionid
+where username is not NULL
+group by orderinfo.UserID order by sum(orderinfo.OrderAmount) DESC
+limit 10;
+
+#day4 Exercise 3: Find the top ten cities with the highest sales volume.
+SELECT sum(orderamount),regionname FROM
+orderinfo left join regioninfo on orderinfo.city=regioninfo.regionid
+group by orderinfo.City
+order by sum(orderamount) desc limit 10;
+
+#day4 Exercise 4: Find the top ten cities with the highest sales volume and their respective provinces.
+select topcity.regionname, topcity.soa, regioninfo.regionname from
+(select regionname,sum(OrderAmount) as soa,province FROM
+orderinfo left join regioninfo on orderinfo.city=regioninfo.regionid
+where regionname is not NULL
+group by regioninfo.regionname order by soa DESC
+LIMIT 10) as topcity 
+#The 'province' here is represented as numbers, so we need to look up the corresponding Chinese characters for these numbers again.
+left join regioninfo on topcity.province=regioninfo.regionid
+order by topcity.soa desc;
+
+#day4 Exercise 5: Find the top ten brands with the highest sales volume.
+select goodsbrand.BrandType, sum(GoodsPrice*amount) FROM
+goodsbrand left join goodsinfo on goodsbrand.SupplierID=goodsinfo.typeid
+left join orderdetail on orderdetail.GoodsID=goodsinfo.goodsid   
+#The 'orderdetail' table contains sales quantity and selling price information, while the 'goodsinfo' table acts as a bridge between the 'orderdetail' and 'goodsbrand' tables. The 'goodsbrand' table provides the Chinese names for the brands.
+GROUP BY goodsbrand.BrandType
+order by sum(goodsprice*Amount) DESC
+limit 10;
+
+#day4 Exercise 6: Find the top ten colors with the highest sales volume.
+select goodscolor.ColorNote, sum(GoodsPrice*amount) FROM
+goodscolor left join orderdetail on goodscolor.ColorID=orderdetail.ColorID
+group by ColorNote
+order by sum(GoodsPrice*Amount) DESC
+limit 10;
+
+#day4 Exercise 7: Find the top ten product IDs with the highest sales volume and their corresponding brands.
+create table top10brands(
+select  typeid, sum(GoodsPrice*Amount), goodsbrand.BrandType FROM
+goodsbrand left join goodsinfo on goodsbrand.SupplierID=goodsinfo.typeid
+left join orderdetail on goodsinfo.goodsid=OrderDetail.GoodsID
+group by goodsinfo.goodsid
+order by sum(GoodsPrice*Amount) DESC
+limit 10);
+
+#The top 10 best-selling brands of products, along with all their corresponding product IDs and sizes
+create table brandgoods(
+select goodsinfo.goodsid, SizeID,top10brands.typeid FROM
+top10brands inner join goodsinfo on top10brands.typeid=goodsinfo.typeid #Here, the brand names are linked together.
+inner join orderdetail on goodsinfo.goodsid=orderdetail.GoodsID
+group by goodsinfo.goodsid);
+
+#All sizes of the selected 5 brands, along with their corresponding sales volumes
+select sum(GoodsPrice*Amount),goodsbrand.BrandType,sizenote from 
+orderdetail inner join brandgoods on orderdetail.goodsid=brandgoods.GoodsID
+inner join goodssize on goodssize.sizeid=brandgoods.SizeID  
+inner join goodsbrand on goodsbrand.SupplierID=brandgoods.typeid  
+group by brandgoods.typeid, brandgoods.sizeid
+order by brandgoods.typeid,sum(GoodsPrice*Amount) desc;
